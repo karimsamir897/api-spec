@@ -1,0 +1,52 @@
+name: stlc build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'stainless/openapi.yml'
+      - 'stainless/stainless.yml'
+      - '.github/workflows/stlc-build.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stlc-build-main
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Configure git auth
+        env:
+          STLC_TOKEN: ${{ secrets.STLC_TOKEN }}
+        run: |
+          git config --global url."https://x-access-token:${STLC_TOKEN}@github.com/karimsamir897/".insteadOf "https://github.com/karimsamir897/"
+          git config --global user.name "stlc-bot"
+          git config --global user.email "stlc-bot@users.noreply.github.com"
+
+      - name: Install stlc from karimsamir897
+        run: |
+          npm install -g \
+            git+https://github.com/karimsamir897/stlc.git \
+            git+https://github.com/karimsamir897/stlc-typescript.git \
+            git+https://github.com/karimsamir897/stlc-mcp.git
+
+      - name: Verify stlc
+        run: stlc version
+
+      - name: Build and push
+        run: stlc build --branch main --push
