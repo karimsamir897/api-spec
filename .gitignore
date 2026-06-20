@@ -1,0 +1,6 @@
+sdks/
+stainless/sdks/
+stainless/builds/
+node_modules/
+scripts/
+stainless.zip
