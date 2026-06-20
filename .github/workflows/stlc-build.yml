@@ -43,6 +43,10 @@ jobs:
           git config --global --add url."https://x-access-token:${STLC_TOKEN}@github.com/karimsamir897/".insteadOf "https://github.com/stainless/"
           git config --global --add url."https://x-access-token:${STLC_TOKEN}@github.com/karimsamir897/".insteadOf "ssh://git@github.com/stainless/"
           git config --global --add url."https://x-access-token:${STLC_TOKEN}@github.com/karimsamir897/".insteadOf "git@github.com:stainless/"
+          # Inject the token into all other github.com URLs (e.g. the SDK output
+          # repos at github.com/karimsamir897/...). The stainless/ rewrites above
+          # still win via longest-prefix match; everything else just gets the token.
+          git config --global --add url."https://x-access-token:${STLC_TOKEN}@github.com/".insteadOf "https://github.com/"
           git config --global user.name "stlc-bot"
           git config --global user.email "stlc-bot@users.noreply.github.com"
 
