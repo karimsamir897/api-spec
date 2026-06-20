@@ -63,5 +63,30 @@ jobs:
       - name: Verify stlc
         run: stlc version
 
-      - name: Build and push
-        run: stlc build --branch main --push
+      - name: Build and push to preview branch
+        env:
+          STLC_TOKEN: ${{ secrets.STLC_TOKEN }}
+        run: |
+          # Build to a non-trunk branch. Per `--trunk-branch` (default "main"),
+          # any non-trunk branch is an ephemeral preview branch: it skips the
+          # trunk origin-alignment guard and force-overwrites its own remote tip
+          # on every rebuild. The branch is created from the remote default (main)
+          # on first run, so the PR below shares history with main and merges clean.
+          stlc build --branch stlc-generated --push
+
+      - name: Open or update SDK PR
+        env:
+          GH_TOKEN: ${{ secrets.STLC_TOKEN }}
+        run: |
+          SDK_REPO="karimsamir897/leadsnap-typescript-staging"
+          HEAD="stlc-generated"
+          BASE="main"
+          existing="$(gh pr list -R "$SDK_REPO" --head "$HEAD" --base "$BASE" --state open --json number --jq '.[0].number')"
+          if [ -n "$existing" ]; then
+            echo "PR #$existing already open for $HEAD -> $BASE; the branch push updated it."
+          else
+            gh pr create -R "$SDK_REPO" \
+              --base "$BASE" --head "$HEAD" \
+              --title "Regenerate SDK from openapi.yml" \
+              --body "Automated SDK regeneration by stlc-build from api-spec@${GITHUB_SHA}."
+          fi
