@@ -40,14 +40,15 @@ jobs:
           git config --global user.name "stlc-bot"
           git config --global user.email "stlc-bot@users.noreply.github.com"
 
-      - name: Install stlc from karimsamir897
+      - name: Install stlc (deps first to avoid transitive fetch)
         env:
           STLC_TOKEN: ${{ secrets.STLC_TOKEN }}
         run: |
           npm install -g \
-            "git+https://x-access-token:${STLC_TOKEN}@github.com/karimsamir897/stlc.git" \
             "git+https://x-access-token:${STLC_TOKEN}@github.com/karimsamir897/stlc-typescript.git" \
             "git+https://x-access-token:${STLC_TOKEN}@github.com/karimsamir897/stlc-mcp.git"
+          npm install -g \
+            "git+https://x-access-token:${STLC_TOKEN}@github.com/karimsamir897/stlc.git"
 
       - name: Verify stlc
         run: stlc version
