@@ -34,9 +34,9 @@ jobs:
         env:
           STLC_TOKEN: ${{ secrets.STLC_TOKEN }}
         run: |
-          git config --global url."https://x-access-token:${STLC_TOKEN}@github.com/karimsamir897/".insteadOf "https://github.com/karimsamir897/"
-          git config --global url."https://x-access-token:${STLC_TOKEN}@github.com/karimsamir897/".insteadOf "ssh://git@github.com/karimsamir897/"
-          git config --global url."https://x-access-token:${STLC_TOKEN}@github.com/karimsamir897/".insteadOf "git@github.com:karimsamir897/"
+          git config --global url."https://x-access-token:${STLC_TOKEN}@github.com/karimsamir897/".insteadOf "https://github.com/stainless/"
+          git config --global url."https://x-access-token:${STLC_TOKEN}@github.com/karimsamir897/".insteadOf "ssh://git@github.com/stainless/"
+          git config --global url."https://x-access-token:${STLC_TOKEN}@github.com/karimsamir897/".insteadOf "git@github.com:stainless/"
           git config --global user.name "stlc-bot"
           git config --global user.email "stlc-bot@users.noreply.github.com"
 
