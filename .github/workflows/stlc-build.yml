@@ -7,7 +7,12 @@ on:
       - 'stainless/openapi.yml'
       - 'stainless/stainless.yml'
       - '.github/workflows/stlc-build.yml'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      bootstrap:
+        description: "One-time: seal generated output as origin/main (for fresh, empty SDK repos)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -63,30 +68,36 @@ jobs:
       - name: Verify stlc
         run: stlc version
 
-      - name: Build and push to preview branch
+      - name: Build and push
+        if: ${{ ! inputs.bootstrap }}
+        run: stlc build --branch main --push
+
+      - name: Bootstrap — seal generated output as origin/main
+        if: ${{ inputs.bootstrap }}
         env:
           STLC_TOKEN: ${{ secrets.STLC_TOKEN }}
         run: |
-          # Build to a non-trunk branch. Per `--trunk-branch` (default "main"),
-          # any non-trunk branch is an ephemeral preview branch: it skips the
-          # trunk origin-alignment guard and force-overwrites its own remote tip
-          # on every rebuild. The branch is created from the remote default (main)
-          # on first run, so the PR below shares history with main and merges clean.
-          stlc build --branch stlc-generated --push
+          # One-time bootstrap for fresh SDK repos that still carry a non-stlc
+          # "initial commit". Generate the SDK (integration fails at the origin-
+          # alignment guard — expected, since origin's tip isn't an stlc commit
+          # yet), then point origin/main at the generated gen-head so future
+          # builds recognize the baseline. After this, the normal build path works.
+          stlc build --branch main || echo "build exited non-zero (expected at the alignment guard)"
 
-      - name: Open or update SDK PR
-        env:
-          GH_TOKEN: ${{ secrets.STLC_TOKEN }}
-        run: |
-          SDK_REPO="karimsamir897/leadsnap-typescript-staging"
-          HEAD="stlc-generated"
-          BASE="main"
-          existing="$(gh pr list -R "$SDK_REPO" --head "$HEAD" --base "$BASE" --state open --json number --jq '.[0].number')"
-          if [ -n "$existing" ]; then
-            echo "PR #$existing already open for $HEAD -> $BASE; the branch push updated it."
-          else
-            gh pr create -R "$SDK_REPO" \
-              --base "$BASE" --head "$HEAD" \
-              --title "Regenerate SDK from openapi.yml" \
-              --body "Automated SDK regeneration by stlc-build from api-spec@${GITHUB_SHA}."
+          # Locate the SDK clone that holds the generated gen-head ref.
+          clone=""
+          while IFS= read -r gitpath; do
+            d="$(dirname "$gitpath")"
+            if git -C "$d" show-ref --verify --quiet refs/stainless/gen-head 2>/dev/null; then
+              clone="$d"; break
+            fi
+          done < <(find "$PWD" -name .git 2>/dev/null)
+
+          if [ -z "$clone" ]; then
+            echo "ERROR: could not find a clone containing refs/stainless/gen-head"; exit 1
           fi
+          echo "Sealing gen-head as main in: $clone"
+          git -C "$clone" show-ref refs/stainless/gen-head
+          git -C "$clone" update-ref refs/heads/main refs/stainless/gen-head
+          git -C "$clone" push --force origin main
+          echo "Done — origin/main now points at the recognized gen-head."
