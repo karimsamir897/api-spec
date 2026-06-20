@@ -21,6 +21,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Prevent checkout from writing an http.extraheader credential for the
+          # default GITHUB_TOKEN. That header is sent on every git HTTPS request
+          # from the repo dir and overrides the STLC_TOKEN embedded in our install
+          # URLs, causing "Repository not found" (404) for the private SDK repos.
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -39,17 +45,6 @@ jobs:
           git config --global url."https://x-access-token:${STLC_TOKEN}@github.com/karimsamir897/".insteadOf "git@github.com:stainless/"
           git config --global user.name "stlc-bot"
           git config --global user.email "stlc-bot@users.noreply.github.com"
-
-      - name: Debug STLC_TOKEN access
-        env:
-          STLC_TOKEN: ${{ secrets.STLC_TOKEN }}
-        run: |
-          for r in stlc stlc-typescript stlc-mcp; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" \
-              -H "Authorization: Bearer ${STLC_TOKEN}" \
-              "https://api.github.com/repos/karimsamir897/$r")
-            echo "$r -> HTTP $code"
-          done
 
       - name: Install stlc (deps first to avoid transitive fetch)
         env:
