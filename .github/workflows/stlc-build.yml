@@ -7,12 +7,7 @@ on:
       - 'stainless/openapi.yml'
       - 'stainless/stainless.yml'
       - '.github/workflows/stlc-build.yml'
-  workflow_dispatch:
-    inputs:
-      bootstrap:
-        description: "One-time: seal generated output as origin/main (for fresh, empty SDK repos)"
-        type: boolean
-        default: false
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -69,35 +64,4 @@ jobs:
         run: stlc version
 
       - name: Build and push
-        if: ${{ ! inputs.bootstrap }}
         run: stlc build --branch main --push
-
-      - name: Bootstrap — seal generated output as origin/main
-        if: ${{ inputs.bootstrap }}
-        env:
-          STLC_TOKEN: ${{ secrets.STLC_TOKEN }}
-        run: |
-          # One-time bootstrap for fresh SDK repos that still carry a non-stlc
-          # "initial commit". Generate the SDK (integration fails at the origin-
-          # alignment guard — expected, since origin's tip isn't an stlc commit
-          # yet), then point origin/main at the generated gen-head so future
-          # builds recognize the baseline. After this, the normal build path works.
-          stlc build --branch main || echo "build exited non-zero (expected at the alignment guard)"
-
-          # Locate the SDK clone that holds the generated gen-head ref.
-          clone=""
-          while IFS= read -r gitpath; do
-            d="$(dirname "$gitpath")"
-            if git -C "$d" show-ref --verify --quiet refs/stainless/gen-head 2>/dev/null; then
-              clone="$d"; break
-            fi
-          done < <(find "$PWD" -name .git 2>/dev/null)
-
-          if [ -z "$clone" ]; then
-            echo "ERROR: could not find a clone containing refs/stainless/gen-head"; exit 1
-          fi
-          echo "Sealing gen-head as main in: $clone"
-          git -C "$clone" show-ref refs/stainless/gen-head
-          git -C "$clone" update-ref refs/heads/main refs/stainless/gen-head
-          git -C "$clone" push --force origin main
-          echo "Done — origin/main now points at the recognized gen-head."
