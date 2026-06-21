@@ -22,7 +22,7 @@ targets:
     #
     # [docs]: https://www.stainless.com/docs/reference/editions
     edition: typescript.2025-10-10
-    package_name: leadsnap-mcp
+    package_name: leadsnap-test-mcp
     production_repo: karimsamir897/leadsnap-typescript-production
     publish:
       npm:
