@@ -39,7 +39,7 @@ environments:
   Leadsnap: https://app.leadsnap.com
   Thrive: https://app.crmthrive.com
   Staging: https://staging.crmthrive.com
-  Local: http://localhost:8006
+  Local: http://localhost:8000
 # `resources` define the structure and organization for your API, such as how
 # methods and models are grouped together and accessed. See the [configuration
 # guide] for more information.
