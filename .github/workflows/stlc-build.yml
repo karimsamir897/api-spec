@@ -1,66 +1,23 @@
 name: stlc build
 
-# On pull_request: build to a preview branch on each staging repo and post a
-# sticky diff comment on the PR. On push to main: build and push directly to
-# main on each staging repo.
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    paths:
-      - 'stainless/**'
-      - '.github/workflows/stlc-build.yml'
   push:
     branches: [main]
     paths:
-      - 'stainless/**'
+      - 'stainless/openapi.yml'
+      - 'stainless/stainless.yml'
       - '.github/workflows/stlc-build.yml'
   workflow_dispatch: {}
 
 permissions:
   contents: read
-  pull-requests: write   # required to post the sticky build-manifest comment
 
 concurrency:
-  # Per-PR (or per-ref) group with last-write-wins: a newer push or PR sync
-  # cancels an in-progress run on the same ref so the preview branch always
-  # reflects the latest state.
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: stlc-build-main
+  cancel-in-progress: false
 
 jobs:
-  # Loop-breaker: a push that only touches stainless/custom-code/** is the
-  # seal-back commit landing — skip regeneration so merging it doesn't loop.
-  guard:
-    runs-on: ubuntu-latest
-    outputs:
-      skip: ${{ steps.check.outputs.skip }}
-    steps:
-      - name: Decide whether this push only changed tracking files
-        id: check
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EVENT: ${{ github.event_name }}
-          REPO: ${{ github.repository }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.sha }}
-        run: |
-          # Only a push to main can be a seal-back commit; PR/dispatch always proceed.
-          if [ "$EVENT" != "push" ]; then echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0; fi
-          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
-            echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          changed=$(gh api "repos/$REPO/compare/$BEFORE...$AFTER" --jq '.files[].filename')
-          echo "Changed files:"; printf '%s\n' "$changed"
-          if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qvE '^stainless/custom-code/'; then
-            echo "Only tracking files changed — skipping regeneration (loop-breaker)."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-
   build:
-    needs: guard
-    if: ${{ needs.guard.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -106,122 +63,5 @@ jobs:
       - name: Verify stlc
         run: stlc version
 
-      - name: Bootstrap tracking files if missing
-        # No custom-code tracking files yet → reconstruct them from origin/main's
-        # `Stainless-Generated-From` trailer so the build takes the integrate path
-        # and recognizes the prior output. Non-fatal: on a truly empty origin
-        # repair finds nothing and the build bootstraps from scratch instead.
-        working-directory: stainless
-        env:
-          STLC_TOKEN: ${{ secrets.STLC_TOKEN }}
-        run: |
-          if ls custom-code/*/*-custom-code.json >/dev/null 2>&1; then
-            echo "Tracking files present — skipping repair."
-          else
-            echo "No tracking files — running stlc repair --force."
-            stlc repair --force --targets all || echo "repair reconstructed nothing (fresh/empty origin) — proceeding to build."
-          fi
-
-      - name: Resolve commit message
-        # Use the merged PR's title as the SDK commit subject; falls back to the
-        # push's head commit message for direct pushes. Only runs on push.
-        id: msg
-        if: github.event_name == 'push'
-        env:
-          SHA: ${{ github.sha }}
-          REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          FALLBACK: ${{ github.event.head_commit.message }}
-        run: |
-          pr_title=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '.[0].title // empty')
-          if [ -n "$pr_title" ]; then
-            commit_msg="$pr_title"
-          else
-            commit_msg="$FALLBACK"
-          fi
-          {
-            echo "commit_msg<<MSG_EOF"
-            echo "$commit_msg"
-            echo "MSG_EOF"
-          } >> "$GITHUB_OUTPUT"
-
       - name: Build and push
-        env:
-          # PR head ref on pull_request (an ephemeral preview branch), "main" on push.
-          BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
-          COMMIT_MSG: ${{ steps.msg.outputs.commit_msg }}
-          STLC_TOKEN: ${{ secrets.STLC_TOKEN }}
-        working-directory: stainless
-        run: |
-          commit_args=()
-          if [ -n "$COMMIT_MSG" ]; then
-            commit_args=(--commit "$COMMIT_MSG")
-          fi
-          # --trunk-branch marks the branch promoted to production (main). Every
-          # other branch is an ephemeral preview whose rebuild overwrites its own
-          # prior remote tip, so re-pushing a PR never fails non-fast-forward.
-          stlc build \
-            --branch "$BRANCH" \
-            --trunk-branch main \
-            --output /tmp/sdk-output \
-            --push \
-            --targets all \
-            "${commit_args[@]}"
-
-      - name: Render build manifest
-        # Render the latest manifest for the sticky PR comment. continue-on-error
-        # so a missing manifest (build aborted before writing one) doesn't mask
-        # the real build failure above.
-        id: manifest
-        if: always() && github.event_name == 'pull_request'
-        continue-on-error: true
-        working-directory: stainless
-        env:
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          if ! stlc show --renderer=markdown --workflow-run-url "$RUN_URL" > /tmp/build-manifest.md; then
-            {
-              echo "## stlc build manifest"
-              echo ""
-              echo "Manifest render failed — no sticky comment will be posted."
-              echo "See the \"Build and push\" step above for the underlying error."
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-          cat /tmp/build-manifest.md
-          cat /tmp/build-manifest.md >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Comment build manifest on PR
-        # `header` identifies the comment so subsequent runs update it in place.
-        if: always() && steps.manifest.outcome == 'success'
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: stlc-build-manifest
-          path: /tmp/build-manifest.md
-
-      - name: Seal tracking files back to the config repo
-        # On push to main, `stlc build` may rewrite the custom-code tracking files
-        # under stainless/custom-code/. Open a PR with them (main is protected) so
-        # the config repo stays in sync with the SDK repos. Merging won't loop —
-        # the `guard` job skips tracking-files-only pushes.
-        if: ${{ success() && github.event_name == 'push' }}
-        env:
-          GH_TOKEN: ${{ secrets.STLC_TOKEN }}
-          STLC_TOKEN: ${{ secrets.STLC_TOKEN }}
-          REPO: ${{ github.repository }}
-        run: |
-          if [ -z "$(git status --porcelain -- stainless/custom-code)" ]; then
-            echo "Tracking files already in sync — nothing to seal."
-            exit 0
-          fi
-          branch="stlc/seal-tracking"
-          git checkout -B "$branch"
-          git add stainless/custom-code
-          git commit -m "chore(stlc): seal custom-code tracking files"
-          git push --force "https://x-access-token:${STLC_TOKEN}@github.com/${REPO}.git" "$branch"
-          open_pr=$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')
-          if [ -z "$open_pr" ]; then
-            gh pr create --base main --head "$branch" \
-              --title "chore(stlc): seal custom-code tracking files" \
-              --body "Automated: \`stlc build\` updated the tracking files under \`stainless/custom-code/\`. Safe to merge — the guard job skips tracking-files-only commits, so it won't trigger another build."
-          fi
+        run: stlc build --branch main --push
