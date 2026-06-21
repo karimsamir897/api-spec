@@ -7,7 +7,6 @@ on:
       - 'stainless/openapi.yml'
       - 'stainless/stainless.yml'
       - '.github/workflows/stlc-build.yml'
-  workflow_dispatch: {}
 
 permissions:
   contents: read
