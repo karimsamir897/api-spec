@@ -110,6 +110,14 @@ jobs:
             fi
           fi
 
+          # If the branch has no changes vs main, there's nothing to PR. Delete
+          # the empty branch and finish — this is a successful no-op build.
+          if [ "$(gh api "repos/$SDK_REPO/compare/main...$BRANCH" --jq '.ahead_by')" = "0" ]; then
+            echo "No SDK changes vs main — nothing to open a PR for."
+            gh api -X DELETE "repos/$SDK_REPO/git/refs/heads/$BRANCH" >/dev/null 2>&1 || true
+            exit 0
+          fi
+
           # Open the PR (or note the existing one — a re-run of the same commit
           # reuses the same branch, so the open PR just gets the new commits).
           existing="$(gh pr list -R "$SDK_REPO" --head "$BRANCH" --base main --state open --json number --jq '.[0].number')"
