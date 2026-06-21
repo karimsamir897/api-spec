@@ -1,20 +1,31 @@
 name: stlc build
 
+# On pull_request: build to a preview branch on each staging repo and post a
+# sticky diff comment on the PR. On push to main: build and push directly to
+# main on each staging repo.
 on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'stainless/**'
+      - '.github/workflows/stlc-build.yml'
   push:
     branches: [main]
     paths:
-      - 'stainless/openapi.yml'
-      - 'stainless/stainless.yml'
+      - 'stainless/**'
       - '.github/workflows/stlc-build.yml'
   workflow_dispatch: {}
 
 permissions:
   contents: read
+  pull-requests: write   # required to post the sticky build-manifest comment
 
 concurrency:
-  group: stlc-build-main
-  cancel-in-progress: false
+  # Per-PR (or per-ref) group with last-write-wins: a newer push or PR sync
+  # cancels an in-progress run on the same ref so the preview branch always
+  # reflects the latest state.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -63,5 +74,79 @@ jobs:
       - name: Verify stlc
         run: stlc version
 
+      - name: Resolve commit message
+        # Use the merged PR's title as the SDK commit subject; falls back to the
+        # push's head commit message for direct pushes. Only runs on push.
+        id: msg
+        if: github.event_name == 'push'
+        env:
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FALLBACK: ${{ github.event.head_commit.message }}
+        run: |
+          pr_title=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '.[0].title // empty')
+          if [ -n "$pr_title" ]; then
+            commit_msg="$pr_title"
+          else
+            commit_msg="$FALLBACK"
+          fi
+          {
+            echo "commit_msg<<MSG_EOF"
+            echo "$commit_msg"
+            echo "MSG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build and push
-        run: stlc build --branch main --push
+        env:
+          # PR head ref on pull_request (an ephemeral preview branch), "main" on push.
+          BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          COMMIT_MSG: ${{ steps.msg.outputs.commit_msg }}
+          STLC_TOKEN: ${{ secrets.STLC_TOKEN }}
+        working-directory: stainless
+        run: |
+          commit_args=()
+          if [ -n "$COMMIT_MSG" ]; then
+            commit_args=(--commit "$COMMIT_MSG")
+          fi
+          # --trunk-branch marks the branch promoted to production (main). Every
+          # other branch is an ephemeral preview whose rebuild overwrites its own
+          # prior remote tip, so re-pushing a PR never fails non-fast-forward.
+          stlc build \
+            --branch "$BRANCH" \
+            --trunk-branch main \
+            --output /tmp/sdk-output \
+            --push \
+            --targets all \
+            "${commit_args[@]}"
+
+      - name: Render build manifest
+        # Render the latest manifest for the sticky PR comment. continue-on-error
+        # so a missing manifest (build aborted before writing one) doesn't mask
+        # the real build failure above.
+        id: manifest
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        working-directory: stainless
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if ! stlc show --renderer=markdown --workflow-run-url "$RUN_URL" > /tmp/build-manifest.md; then
+            {
+              echo "## stlc build manifest"
+              echo ""
+              echo "Manifest render failed — no sticky comment will be posted."
+              echo "See the \"Build and push\" step above for the underlying error."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          cat /tmp/build-manifest.md
+          cat /tmp/build-manifest.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment build manifest on PR
+        # `header` identifies the comment so subsequent runs update it in place.
+        if: always() && steps.manifest.outcome == 'success'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: stlc-build-manifest
+          path: /tmp/build-manifest.md
