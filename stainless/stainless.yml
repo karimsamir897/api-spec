@@ -8,7 +8,7 @@ edition: 2026-05-06
 organization:
   # Name of your organization or company, used to determine the name of the client
   # and headings.
-  name: thrive-mcp
+  name: ls-test
   # Link to your API documentation.
   docs: ''
   # Contact email for bug reports, questions, and support requests.
@@ -32,7 +32,7 @@ targets:
         prerelease: true
     options:
       mcp_server:
-        package_name: thrive-mcp-mcp
+        package_name: ls-test-mcp
         generate_cloudflare_worker: true
     staging_repo: karimsamir897/leadsnap-typescript-production
 
