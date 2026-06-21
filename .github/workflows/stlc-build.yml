@@ -68,7 +68,13 @@ jobs:
           STLC_TOKEN: ${{ secrets.STLC_TOKEN }}
           GH_TOKEN: ${{ secrets.STLC_TOKEN }}
         run: |
-          SDK_REPO="karimsamir897/leadsnap-typescript-staging"
+          # Read the SDK repo (staging_repo) from stainless.yml so it isn't
+          # hard-coded. Single-target setup: take the first target's staging_repo.
+          SDK_REPO="$(yq '.targets[].staging_repo | select(. != null)' stainless/stainless.yml | head -n1)"
+          if [ -z "$SDK_REPO" ] || [ "$SDK_REPO" = "null" ]; then
+            echo "ERROR: could not read targets[].staging_repo from stainless.yml"; exit 1
+          fi
+          echo "SDK repo (from stainless.yml): $SDK_REPO"
 
           # Helper: find the SDK clone holding the freshly generated gen-head.
           find_gen_head_clone() {
