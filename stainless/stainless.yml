@@ -31,7 +31,7 @@ targets:
       mcp_server:
         package_name: thrive-mcp-mcp
         generate_cloudflare_worker: true
-    staging_repo: karimsamir897/leadsnap-typescript-staging
+    staging_repo: karimsamir897/leadsnap-typescript-production
 
 # `environments` are a map of the name of the environment (e.g. "sandbox",
 # "production") to the corresponding url to use.
