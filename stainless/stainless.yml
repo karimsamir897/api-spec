@@ -32,7 +32,7 @@ targets:
         prerelease: true
     options:
       mcp_server:
-        package_name: leadsnap-test-mcp
+        package_name: leadsnap-test-mcp-server
         generate_cloudflare_worker: true
     staging_repo: karimsamir897/leadsnap-typescript-production
 
