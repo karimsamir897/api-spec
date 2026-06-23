@@ -87,6 +87,11 @@ jobs:
           if [ -z "$(git ls-remote "https://github.com/${SDK_REPO}.git" refs/heads/main 2>/dev/null)" ]; then
             echo "Staging repo has no main — bootstrapping directly to main."
             stlc build --branch main --push
+            clone="$(find_gen_head_clone)"
+            if [ -n "$clone" ]; then
+              git -C "$clone" commit --amend -m "chore: generate SDK"
+              git -C "$clone" push --force-with-lease origin main
+            fi
             exit 0
           fi
 
@@ -109,10 +114,18 @@ jobs:
               clone="$(find_gen_head_clone)"
               if [ -z "$clone" ]; then echo "ERROR: no gen-head clone found"; exit 1; fi
               git -C "$clone" update-ref "refs/heads/$BRANCH" refs/stainless/gen-head
+              git -C "$clone" commit --amend -m "chore: regenerate SDK"
               git -C "$clone" push --force origin "refs/heads/$BRANCH:refs/heads/$BRANCH"
             else
               echo "Build failed for a reason other than the alignment guard — failing."
               exit "$code"
+            fi
+          else
+            # Normal success: amend stlc commit message to conventional format
+            clone="$(find_gen_head_clone)"
+            if [ -n "$clone" ]; then
+              git -C "$clone" commit --amend -m "chore: regenerate SDK"
+              git -C "$clone" push --force-with-lease origin "refs/heads/$BRANCH:refs/heads/$BRANCH"
             fi
           fi
 
@@ -131,6 +144,6 @@ jobs:
             echo "PR #$existing already open for $BRANCH — updated by the push."
           else
             gh pr create -R "$SDK_REPO" --base main --head "$BRANCH" \
-              --title "SDK update from api-spec@${GITHUB_SHA:0:7}" \
+              --title "chore: regenerate SDK" \
               --body "Automated SDK regeneration by stlc-build from api-spec@${GITHUB_SHA}."
           fi
