@@ -27,6 +27,9 @@ targets:
     publish:
       npm:
         auth_method: access-token
+      release:
+        branch: main
+        prerelease: true
     options:
       mcp_server:
         package_name: leadsnap-mcp-mcp
