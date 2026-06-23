@@ -8,7 +8,7 @@ edition: 2026-05-06
 organization:
   # Name of your organization or company, used to determine the name of the client
   # and headings.
-  name: ls-test
+  name: thrive-mcp
   # Link to your API documentation.
   docs: ''
   # Contact email for bug reports, questions, and support requests.
@@ -22,17 +22,14 @@ targets:
     #
     # [docs]: https://www.stainless.com/docs/reference/editions
     edition: typescript.2025-10-10
-    package_name: leadsnap-test-typescript
+    package_name: leadsnap-mcp
     production_repo: karimsamir897/leadsnap-typescript-production
     publish:
       npm:
         auth_method: access-token
-      release:
-        branch: main
-        prerelease: true
     options:
       mcp_server:
-        package_name: leadsnap-test-mcp-server
+        package_name: leadsnap-mcp-mcp
         generate_cloudflare_worker: true
     staging_repo: karimsamir897/leadsnap-typescript-production
 
@@ -42,7 +39,7 @@ environments:
   Leadsnap: https://app.leadsnap.com
   Thrive: https://app.crmthrive.com
   Staging: https://staging.crmthrive.com
-  Local: http://localhost:8088
+  Local: http://127.0.0.1:8000
 # `resources` define the structure and organization for your API, such as how
 # methods and models are grouped together and accessed. See the [configuration
 # guide] for more information.
