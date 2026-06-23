@@ -22,17 +22,17 @@ targets:
     #
     # [docs]: https://www.stainless.com/docs/reference/editions
     edition: typescript.2025-10-10
-    package_name: leadsnap-mcp
+    package_name: leadsnap-test-typescript
     production_repo: karimsamir897/leadsnap-typescript-production
     publish:
       npm:
         auth_method: access-token
       release:
         branch: main
-        prerelease: true
+        prerelease: false
     options:
       mcp_server:
-        package_name: leadsnap-mcp-mcp
+        package_name: leadsnap-test-mcp-server
         generate_cloudflare_worker: true
     staging_repo: karimsamir897/leadsnap-typescript-production
 
