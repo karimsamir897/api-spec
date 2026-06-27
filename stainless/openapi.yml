@@ -65,13 +65,11 @@ components:
 security:
   - default: []
 x-tagGroups:
-  - name: Heatmaps
+  - name: APIs
     tags:
       - Heatmaps
       - Heatmap Points
       - Heatmap Schedules
-  - name: CRM
-    tags:
       - Contacts
       - Phone Calls
       - Form Submissions
