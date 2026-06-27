@@ -85,7 +85,6 @@ paths:
         Supports
         search, filtering, sorting and pagination.
         **Pagination** — fields are returned at the root level alongside `data`:
-
         `total`, `last_page`, `per_page`, `current_page`. A `meta.summary`
         object carries
 
