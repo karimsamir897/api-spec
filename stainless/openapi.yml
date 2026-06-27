@@ -54,7 +54,7 @@ x-tagGroups:
       - Heatmap Points
       - Heatmap Schedules
 paths:
-  /public/api/v1/heatmap/grid-points:
+  /public/api/v1/heatmap/grids-points:
     post:
       summary: Generate grid points
       operationId: generateGridPoints
