@@ -3918,7 +3918,7 @@ paths:
                 - distanceType
                 - lat
                 - lng
-  /public/api/v1/heatmaps/locations:
+  /public/api/v1/heatmaps/locationssss:
     get:
       summary: List locations
       operationId: listLocations
