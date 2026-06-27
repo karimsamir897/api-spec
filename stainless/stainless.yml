@@ -23,7 +23,7 @@ targets:
     # [docs]: https://www.stainless.com/docs/reference/editions
     edition: typescript.2025-10-10
     package_name: leadsnap-test-typescript
-    production_repo: karimsamir897/leadsnap-typescript-production
+    production_repo: karimsamir897/leadsnap-typescript-production-test
     publish:
       npm:
         auth_method: access-token
@@ -34,7 +34,7 @@ targets:
       mcp_server:
         package_name: leadsnap-test-mcp-server
         generate_cloudflare_worker: true
-    staging_repo: karimsamir897/leadsnap-typescript-production
+    staging_repo: karimsamir897/leadsnap-typescript-production-test
 
 # `environments` are a map of the name of the environment (e.g. "sandbox",
 # "production") to the corresponding url to use.
