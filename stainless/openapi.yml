@@ -2615,7 +2615,7 @@ paths:
                 - lng
                 - grid_size
                 - grid_radius
-  /public/api/v1/heatmaps/{heatmap_id}/points/{point_id}:
+  /public/api/v1/heatmaps/{heatmap_id}/points/{point_id}/xxxxxxxxxxx:
     get:
       summary: Get heatmap point
       operationId: getHeatmapPoint
