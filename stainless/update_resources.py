@@ -33,43 +33,51 @@ def snake(name: str) -> str:
     return name.lower().strip("_")
 
 
-def method_name(operation_id: str, http_method: str, path: str) -> str:
-    """Derive a Stainless method name from the operationId.
+GENERIC_VERBS = ("get", "list", "create", "update", "delete")
 
-    Follows the existing config convention: snake_case the operationId and
-    rename a leading `get` to `retrieve` (Stainless idiom for single-object GET).
-    Falls back to <verb>_<last-path-segment> when there is no operationId.
+
+def noun_stopwords(resource_name: str) -> set:
+    """Singular + plural variants of every word in the resource name.
+
+    These are stripped from method names so `listContacts` -> `list`,
+    `getHeatmapCompetitors` -> `competitors`, etc.
+    """
+    stop = set()
+    for word in resource_name.split("_"):
+        if not word:
+            continue
+        stop.add(word)
+        stop.add(word[:-1] if word.endswith("s") else word + "s")
+    return stop
+
+
+def method_name(operation_id: str, http_method: str, path: str, stop: set) -> str:
+    """Derive a short Stainless method name from the operationId.
+
+    Strips the resource noun (e.g. `contact`/`contacts`) and shortens GET verbs:
+    a bare `get` becomes `retrieve`; a `get` followed by a real suffix is dropped
+    entirely (`getHeatmapCompetitors` -> `competitors`). Other verbs are kept
+    (`listLocations` -> `list_locations`).
     """
     if operation_id:
-        name = snake(operation_id)
+        tokens = snake(operation_id).split("_")
     else:
         segment = snake(re.sub(r"[{}]", "", path.rstrip("/").split("/")[-1]))
-        name = f"{http_method}_{segment}"
-    if name == "get" or name.startswith("get_"):
-        name = "retrieve" + name[3:]
-    return name
+        tokens = [http_method, segment]
 
+    tokens = [t for t in tokens if t not in stop] or [http_method]
 
-def common_prefix_segments(paths):
-    """Longest common leading path-segment list shared by all paths."""
-    split = [[s for s in p.strip("/").split("/") if s] for p in paths]
-    if not split:
-        return []
-    prefix = []
-    for seg_group in zip(*split):
-        first = seg_group[0]
-        if first.startswith("{") or any(s != first for s in seg_group):
-            break
-        prefix.append(first)
-    return prefix
+    if tokens[0] == "get":
+        tokens = ["retrieve"] if len(tokens) == 1 else tokens[1:]
+
+    return "_".join(tokens)
 
 
 def build_resources(openapi: dict) -> dict:
-    """Return the resources tree as plain dicts (insertion-ordered)."""
+    """Return a flat {resource: {methods: {...}}} tree (insertion-ordered)."""
     paths = openapi.get("paths", {})
-    prefix = common_prefix_segments(paths.keys())
 
-    # tag -> {method_name: "verb /path"}, preserving first-seen order
+    # tag -> list of (verb, path, operationId), preserving first-seen order
     by_tag = {}
     for path, item in paths.items():
         if not isinstance(item, dict):
@@ -77,21 +85,22 @@ def build_resources(openapi: dict) -> dict:
         for verb, op in item.items():
             if verb.lower() not in HTTP_METHODS or not isinstance(op, dict):
                 continue
-            tags = op.get("tags") or ["default"]
-            tag = tags[0]
-            mname = method_name(op.get("operationId", ""), verb.lower(), path)
-            by_tag.setdefault(tag, {})[mname] = f"{verb.lower()} {path}"
+            tag = (op.get("tags") or ["default"])[0]
+            by_tag.setdefault(tag, []).append((verb.lower(), path, op.get("operationId", "")))
 
-    # leaf: resource per tag
-    leaf = {}
-    for tag, methods in by_tag.items():
-        leaf[snake(tag)] = {"methods": methods}
-
-    # nest leaf under the common prefix segments
-    inner = leaf
-    for seg in reversed(prefix):
-        inner = {seg: {"subresources": inner}}
-    return inner
+    resources = {}
+    for tag, ops in by_tag.items():
+        rname = snake(tag)
+        stop = noun_stopwords(rname)
+        methods = {}
+        for verb, path, op_id in ops:
+            name = method_name(op_id, verb, path, stop)
+            if name in methods:  # collision: fall back to the fuller name
+                fallback = method_name(op_id, verb, path, set())
+                name = fallback if fallback not in methods else f"{name}_{verb}"
+            methods[name] = f"{verb} {path}"
+        resources[rname] = {"methods": methods}
+    return resources
 
 
 # ---- YAML emission (2-space indent, block style, matching stainless.yml) ----
@@ -159,11 +168,7 @@ def main():
         return
 
     config_path.write_text(updated, encoding="utf-8")
-    # descend through the prefix to the leaf resource map for an accurate count
-    node = tree
-    while node and "subresources" in next(iter(node.values())):
-        node = next(iter(node.values()))["subresources"]
-    print(f"Updated {config_path.name}: wrote {len(node)} resources from {openapi_path.name}.")
+    print(f"Updated {config_path.name}: wrote {len(tree)} resources from {openapi_path.name}.")
 
 
 if __name__ == "__main__":
