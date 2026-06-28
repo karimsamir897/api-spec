@@ -23,7 +23,7 @@ targets:
     # [docs]: https://www.stainless.com/docs/reference/editions
     edition: typescript.2025-10-10
     package_name: leadsnap-test-typescript
-    production_repo: karimsamir897/leadsnap-typescript-production-test
+    production_repo: karimsamir897/leadsnap-typescript-production
     publish:
       npm:
         auth_method: access-token
@@ -34,7 +34,7 @@ targets:
       mcp_server:
         package_name: leadsnap-test-mcp-server
         generate_cloudflare_worker: true
-    staging_repo: karimsamir897/leadsnap-typescript-production-test
+    staging_repo: karimsamir897/leadsnap-typescript-production
 
 # `environments` are a map of the name of the environment (e.g. "sandbox",
 # "production") to the corresponding url to use.
@@ -50,37 +50,42 @@ environments:
 # [configuration guide]: https://www.stainless.com/docs/guides/configure#resources
 resources:
   public:
-    # Subresources define resources that are nested within another for more powerful
-    # logical groupings, e.g. `cards.payments`.
     subresources:
       api:
         subresources:
           v1:
             subresources:
-              heatmap:
-                # Configure the methods defined in this resource. Each key in the object is the
-                # name of the method and the value is either an endpoint (for example, `get /foo`)
-                # or an object with more detail.
-                #
-                # [reference]: https://www.stainless.com/docs/reference/config#method
+              contacts:
+                methods:
+                  list_contacts: get /public/api/v1/contacts
+                  retrieve_contact: get /public/api/v1/contacts/{contactId}
+                  contact_timeline: get /public/api/v1/contacts/{contactId}/timeline
+                  contact_conversations: get /public/api/v1/contacts/{contactId}/conversations
+              form_submissions:
+                methods:
+                  list_form_submissions: get /public/api/v1/form-submissions
+              heatmap_points:
                 methods:
                   generate_grid_points: post /public/api/v1/heatmap/grid-points
                   retrieve_heatmap_point: get /public/api/v1/heatmaps/{heatmap_id}/points/{point_id}
+              heatmap_schedules:
+                methods:
+                  list_schedules: get /public/api/v1/heatmap/schedules
+                  create_schedule: post /public/api/v1/heatmap/schedules
+                  retrieve_schedule: get /public/api/v1/heatmap/schedules/{schedule}
+                  update_schedule: patch /public/api/v1/heatmap/schedules/{schedule_id}
+                  pause_schedule: post /public/api/v1/heatmap/schedules/{schedule_id}/pause
+                  resume_schedule: post /public/api/v1/heatmap/schedules/{schedule_id}/resume
+              heatmaps:
+                methods:
                   list_heatmaps: get /public/api/v1/heatmaps
                   create_heatmap: post /public/api/v1/heatmaps
                   list_locations: get /public/api/v1/heatmaps/locations
                   retrieve_heatmap: get /public/api/v1/heatmaps/{heatmap}
                   retrieve_heatmap_competitors: get /public/api/v1/heatmaps/{heatmap}/competitors
-                subresources:
-                  schedules:
-                    methods:
-                      list_schedules: get /public/api/v1/heatmap/schedules
-                      create_schedule: post /public/api/v1/heatmap/schedules
-                      retrieve_schedule: get /public/api/v1/heatmap/schedules/{schedule}
-                      update_schedule: patch /public/api/v1/heatmap/schedules/{schedule_id}
-                      pause_schedule: post /public/api/v1/heatmap/schedules/{schedule_id}/pause
-                      resume_schedule: post /public/api/v1/heatmap/schedules/{schedule_id}/resume
-
+              phone_calls:
+                methods:
+                  list_phone_calls: get /public/api/v1/phone-calls
 settings:
   # All generated integration tests that hit the steady mock http server are marked
   # as skipped. Removing this setting or setting it to false enables tests, but
